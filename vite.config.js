@@ -1,8 +1,10 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-// Replace <repo-name> with your repo's name, e.g. 'Method-Swatch'
+// Replace with your repo name exactly:
+const repoName = 'Method-Swatch'
+
 export default defineConfig({
   plugins: [react()],
-  base: '/<repo-name>/',   // e.g. '/Method-Swatch/'
+  base: `/${repoName}/`,
 })
