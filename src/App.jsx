@@ -9,15 +9,15 @@ import {
   RefreshCcw,
   Lock,
   Unlock as LockOpen,
-  Palette,
   Settings,
 } from "lucide-react";
+import logo from "../logo.svg";
 
 /**
  * Method Swatch – App.jsx (patched)
  * - White background / black UI
  * - Fixed lucide-react imports (no `Images`)
- * - Removed missing imports (`mergeCloseColors.js`, `logo.svg`) and inlined helpers
+ * - Removed missing import (`mergeCloseColors.js`) and inlined helpers
  * - Works with Vite + Tailwind
  */
 
@@ -509,7 +509,7 @@ export default function App() {
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="h-9 w-9 rounded-xl border border-black/10 grid place-items-center">
-              <Palette className="h-5 w-5" />
+              <img src={logo} alt="Method Swatch logo" className="h-5 w-5" />
             </div>
             <div>
               <h1 className="text-xl font-semibold tracking-tight">Method Swatch</h1>
