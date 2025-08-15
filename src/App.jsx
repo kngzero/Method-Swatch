@@ -508,9 +508,7 @@ export default function App() {
       <header className="sticky top-0 z-10 backdrop-blur border-b border-black/10 bg-white/80">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl border border-black/10 grid place-items-center">
-              <img src={logo} alt="Method Swatch logo" className="h-5 w-5" />
-            </div>
+            <img src={logo} alt="Method Swatch logo" className="h-9 w-9" />
             <div>
               <h1 className="text-xl font-semibold tracking-tight">Method Swatch</h1>
               <p className="text-xs text-black/60 -mt-0.5">Extract refined color palettes from your images</p>
