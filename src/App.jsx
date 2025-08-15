@@ -8,7 +8,7 @@ import {
   Copy,
   RefreshCcw,
   Lock,
-  LockOpen,
+  Unlock as LockOpen,
   Palette,
   Settings,
 } from "lucide-react";
