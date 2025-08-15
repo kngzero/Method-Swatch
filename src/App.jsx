@@ -1,22 +1,27 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Upload, Image as ImageIcon, Trash2, Download, Copy, RefreshCcw, Lock, Unlock, Settings } from "lucide-react";
-import { mergeCloseColors } from "./mergeCloseColors.js";
-import logo from "../logo.svg";
+import {
+  Upload,
+  Image as ImageIcon,
+  Trash2,
+  Download,
+  Copy,
+  RefreshCcw,
+  Lock,
+  LockOpen,
+  Palette,
+  Settings,
+} from "lucide-react";
 
-// =============================
-// Method Swatch — MVP Web App (Light UI)
-// =============================
-// Restored full functionality with white background / black UI to match Method Mosaic
-// - Drag & drop uploads, multi-image support, paste from clipboard
-// - K-means color quantization (locks respected)
-// - Adjustable palette size, modes (Dominant/Vibrant/Unique)
-// - Ignore near-neutrals, merge similar shades
-// - Lock colors, drag-reorder swatches, copy HEX
-// - Export JSON / CSS / PNG palette sheet
-// - Smooth micro-animations via Framer Motion
+/**
+ * Method Swatch – App.jsx (patched)
+ * - White background / black UI
+ * - Fixed lucide-react imports (no `Images`)
+ * - Removed missing imports (`mergeCloseColors.js`, `logo.svg`) and inlined helpers
+ * - Works with Vite + Tailwind
+ */
 
-// ---------- Utility Functions ----------
+/* ---------- Utility Functions ---------- */
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 
 function rgbToHex(r, g, b) {
@@ -76,8 +81,39 @@ function arrayShuffleInPlace(arr) {
   return arr;
 }
 
+/** Merge near-duplicate colors by Euclidean distance threshold in RGB space */
+function mergeCloseColors(colors, threshold = 18) {
+  if (!colors || colors.length === 0) return colors;
+  const out = [];
+  const used = new Array(colors.length).fill(false);
+  for (let i = 0; i < colors.length; i++) {
+    if (used[i]) continue;
+    let base = { ...colors[i] };
+    let totalCount = base.count || 1;
+    used[i] = true;
+    for (let j = i + 1; j < colors.length; j++) {
+      if (used[j]) continue;
+      const d = Math.sqrt(distanceSq(base, colors[j]));
+      if (d <= threshold) {
+        const c = colors[j];
+        const w = (c.count || 1);
+        base = {
+          r: Math.round((base.r * totalCount + c.r * w) / (totalCount + w)),
+          g: Math.round((base.g * totalCount + c.g * w) / (totalCount + w)),
+          b: Math.round((base.b * totalCount + c.b * w) / (totalCount + w)),
+          count: totalCount + w,
+          locked: base.locked || c.locked,
+        };
+        used[j] = true;
+        totalCount += w;
+      }
+    }
+    out.push(base);
+  }
+  return out;
+}
 
-// ---------- K-Means Quantization ----------
+/* ---------- K-Means Quantization ---------- */
 function kmeansQuantize({ pixels, k, maxIters = 10, locked = [], ignoreNeutrals = false }) {
   if (!pixels || pixels.length === 0) return [];
 
@@ -94,13 +130,9 @@ function kmeansQuantize({ pixels, k, maxIters = 10, locked = [], ignoreNeutrals 
   }
 
   const centroids = [];
-  let lockedRGB = locked
+  const lockedRGB = locked
     .filter((c) => c && c.hex)
     .map((c) => ({ ...hexToRgb(c.hex), locked: true }));
-  if (lockedRGB.length > k) {
-    console.warn(`Locked colors (${lockedRGB.length}) exceed palette size ${k}. Extra locks will be ignored.`);
-    lockedRGB = lockedRGB.slice(0, k);
-  }
   for (const c of lockedRGB) centroids.push({ ...c });
 
   const need = Math.max(0, k - centroids.length);
@@ -184,15 +216,8 @@ function rankPalette(colors, mode = "Dominant") {
   return arr.sort((a, b) => (b.count || 0) - (a.count || 0));
 }
 
+/* Draw a simple PNG palette sheet on white */
 async function drawPalettePNG(colors, options = {}) {
-  if (
-    typeof document === "undefined" ||
-    typeof URL === "undefined" ||
-    typeof URL.createObjectURL !== "function"
-  ) {
-    throw new Error("PNG export is not supported in this environment.");
-  }
-
   const {
     title = "Method Swatch",
     subtitle = new Date().toLocaleString(),
@@ -211,11 +236,9 @@ async function drawPalettePNG(colors, options = {}) {
   canvas.height = height;
   const ctx = canvas.getContext("2d");
 
-  // Background (white) to match site style
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, width, height);
 
-  // Title
   ctx.fillStyle = "#111111";
   ctx.font = "600 28px Inter, system-ui, -apple-system, Segoe UI, Roboto";
   ctx.fillText(title, padding, padding + 8);
@@ -223,7 +246,6 @@ async function drawPalettePNG(colors, options = {}) {
   ctx.fillStyle = "#555555";
   ctx.fillText(subtitle, padding, padding + 36);
 
-  // Swatches
   let x = padding, y = padding + 64;
   let col = 0;
   colors.forEach((c) => {
@@ -231,35 +253,31 @@ async function drawPalettePNG(colors, options = {}) {
     ctx.fillStyle = hex;
     ctx.fillRect(x, y, swatchWidth, swatchHeight - 40);
 
-    // Label area (white)
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(x, y + swatchHeight - 40, swatchWidth, 40);
 
-    // Border under label
-    ctx.strokeStyle = "#e5e7eb"; // light gray
+    ctx.strokeStyle = "#e5e7eb";
     ctx.beginPath();
     ctx.moveTo(x, y + swatchHeight - 40);
     ctx.lineTo(x + swatchWidth, y + swatchHeight - 40);
     ctx.stroke();
 
-    // HEX text (black)
     ctx.fillStyle = "#111111";
     ctx.font = "500 16px Inter, system-ui, -apple-system, Segoe UI, Roboto";
     ctx.fillText(hex, x + 12, y + swatchHeight - 16);
 
     col++;
-    if (col >= columns) {
-      col = 0; x = padding; y += swatchHeight + 16;
-    } else {
-      x += swatchWidth + 16;
-    }
+    if (col >= columns) { col = 0; x = padding; y += swatchHeight + 16; }
+    else { x += swatchWidth + 16; }
   });
 
   return canvas.toDataURL("image/png");
 }
 
+/* Extract pixels from images (downsampled for performance) */
 async function extractPixelsFromFiles(files, targetMaxDim = 400, step = 2) {
   const pixels = [];
+
   const loadImage = (file) => new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => resolve(img);
@@ -297,10 +315,12 @@ async function extractPixelsFromFiles(files, targetMaxDim = 400, step = 2) {
       URL.revokeObjectURL(img.src);
     }
   }
+
   return pixels;
 }
 
-export default function MethodSwatchApp() {
+/* ---------- Main App ---------- */
+export default function App() {
   const [files, setFiles] = useState([]);
   const [previews, setPreviews] = useState([]);
   const [pixels, setPixels] = useState([]);
@@ -312,36 +332,26 @@ export default function MethodSwatchApp() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [dragIndex, setDragIndex] = useState(null);
-  const [canExport, setCanExport] = useState(false);
-  const downloadRef = useRef(null);
 
   const dropRef = useRef(null);
 
   const hasImages = files.length > 0;
   const hasPalette = palette.length > 0;
 
+  /* Handle file selection + previews */
   const handleFiles = useCallback(async (fileList) => {
     const arr = Array.from(fileList || []);
     if (arr.length === 0) return;
     setError("");
     setBusy(true);
     try {
-      let allFiles = [];
-      setFiles((prev) => {
-        const filtered = prev.filter((f) => !arr.some((n) => n.name === f.name));
-        allFiles = [...filtered, ...arr];
-        return allFiles;
-      });
+      setFiles(arr);
       const thumbs = arr.map((f) => ({ name: f.name, url: URL.createObjectURL(f) }));
       setPreviews((prev) => {
-        const kept = prev.filter((p) => {
-          const replaced = thumbs.some((t) => t.name === p.name);
-          if (replaced) URL.revokeObjectURL(p.url);
-          return !replaced;
-        });
-        return [...kept, ...thumbs];
+        prev.forEach((p) => URL.revokeObjectURL(p.url));
+        return thumbs;
       });
-      const px = await extractPixelsFromFiles(allFiles);
+      const px = await extractPixelsFromFiles(arr);
       setPixels(px);
     } catch (e) {
       console.error(e);
@@ -351,9 +361,11 @@ export default function MethodSwatchApp() {
     }
   }, []);
 
+  /* Drag & drop + paste handlers */
   useEffect(() => {
     const el = dropRef.current;
     if (!el) return;
+
     const onDragOver = (e) => { e.preventDefault(); el.classList.add("ring-2", "ring-black/30"); };
     const onDragLeave = () => { el.classList.remove("ring-2", "ring-black/30"); };
     const onDrop = (e) => {
@@ -388,27 +400,12 @@ export default function MethodSwatchApp() {
     };
   }, [handleFiles]);
 
-  useEffect(() => {
-    const ok =
-      typeof document !== "undefined" &&
-      typeof URL !== "undefined" &&
-      typeof URL.createObjectURL === "function";
-    setCanExport(ok);
-    if (ok) {
-      downloadRef.current = document.createElement("a");
-    }
-  }, []);
-
+  /* Generate / regenerate palette */
   const generatePalette = useCallback(async () => {
     if (!pixels.length) return;
     setBusy(true);
-    setError("");
     try {
-      let locked = palette.filter((c) => c.locked).map((c) => ({ hex: rgbToHex(c.r, c.g, c.b) }));
-      if (locked.length > numColors) {
-        setError(`Too many locked colors (${locked.length}). Only first ${numColors} will be used.`);
-        locked = locked.slice(0, numColors);
-      }
+      const locked = palette.filter((c) => c.locked).map((c) => ({ hex: rgbToHex(c.r, c.g, c.b) }));
       let result = kmeansQuantize({ pixels, k: numColors, locked, ignoreNeutrals });
       if (mergeThreshold > 0) {
         result = mergeCloseColors(result, mergeThreshold);
@@ -431,6 +428,7 @@ export default function MethodSwatchApp() {
     }
   }, [pixels, numColors, mode, ignoreNeutrals, mergeThreshold, palette]);
 
+  /* Clear everything */
   const clearAll = useCallback(() => {
     setFiles([]);
     previews.forEach((p) => URL.revokeObjectURL(p.url));
@@ -440,6 +438,7 @@ export default function MethodSwatchApp() {
     setError("");
   }, [previews]);
 
+  /* Swatch handlers */
   const toggleLock = (idx) => {
     setPalette((prev) => prev.map((c, i) => (i === idx ? { ...c, locked: !c.locked } : c)));
   };
@@ -459,107 +458,49 @@ export default function MethodSwatchApp() {
   const onDropSwatch = () => setDragIndex(null);
 
   const copyText = async (text) => {
-    if (typeof navigator !== "undefined" && navigator.clipboard) {
-      try {
-        await navigator.clipboard.writeText(text);
-      } catch (e) {
-        console.error("Copy failed", e);
-        setError("Copy failed.");
-      }
-    } else if (typeof document !== "undefined") {
-      const textarea = document.createElement("textarea");
-      textarea.value = text;
-      textarea.style.position = "fixed";
-      textarea.style.opacity = "0";
-      document.body.appendChild(textarea);
-      textarea.focus();
-      textarea.select();
-      try {
-        document.execCommand("copy");
-        setError("Copied using fallback. Clipboard API unavailable.");
-      } catch (e) {
-        console.error("Copy failed", e);
-        setError(`Clipboard not supported. Please copy manually: ${text}`);
-      } finally {
-        document.body.removeChild(textarea);
-      }
-    } else {
-      setError(`Clipboard not supported. Please copy manually: ${text}`);
-    }
+    try { await navigator.clipboard.writeText(text); } catch (e) { console.error("Copy failed", e); }
   };
 
-  const exportJSON = useCallback(() => {
-    if (!canExport || !downloadRef.current) {
-      setError("Export not supported in this environment.");
-      return;
-    }
-    const data = palette.map((c, i) => ({
-      name: `swatch_${i + 1}`,
-      hex: rgbToHex(c.r, c.g, c.b),
-      rgb: { r: c.r, g: c.g, b: c.b },
-    }));
-    const blob = new Blob([
-      JSON.stringify({ name: "Method Swatch Palette", colors: data }, null, 2),
-    ], { type: "application/json" });
+  const exportJSON = () => {
+    const data = palette.map((c, i) => ({ name: `swatch_${i + 1}`, hex: rgbToHex(c.r, c.g, c.b), rgb: { r: c.r, g: c.g, b: c.b } }));
+    const blob = new Blob([JSON.stringify({ name: "Method Swatch Palette", colors: data }, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
-    const a = downloadRef.current;
+    const a = document.createElement("a");
     a.href = url;
     a.download = "method-swatch-palette.json";
     a.click();
     URL.revokeObjectURL(url);
-  }, [palette, canExport]);
+  };
 
-  const exportCSS = useCallback(() => {
-    if (!canExport || !downloadRef.current) {
-      setError("Export not supported in this environment.");
-      return;
-    }
+  const exportCSS = () => {
     const lines = [":root {"];
-    palette.forEach((c, i) =>
-      lines.push(`  --swatch-${i + 1}: ${rgbToHex(c.r, c.g, c.b)};`)
-    );
+    palette.forEach((c, i) => lines.push(`  --swatch-${i + 1}: ${rgbToHex(c.r, c.g, c.b)};`));
     lines.push("}");
     const css = lines.join("\n");
     const blob = new Blob([css], { type: "text/css" });
     const url = URL.createObjectURL(blob);
-    const a = downloadRef.current;
+    const a = document.createElement("a");
     a.href = url;
     a.download = "method-swatch.css";
     a.click();
     URL.revokeObjectURL(url);
-  }, [palette, canExport]);
+  };
 
-  const exportPNG = useCallback(async () => {
-    if (!canExport || !downloadRef.current) {
-      setError("Export not supported in this environment.");
-      return;
-    }
-    try {
-      const dataUrl = await drawPalettePNG(palette);
-      const a = downloadRef.current;
-      a.href = dataUrl;
-      a.download = "method-swatch.png";
-      a.click();
-    } catch (e) {
-      setError(e.message || "PNG export failed.");
-    }
-  }, [palette, canExport]);
+  const exportPNG = async () => {
+    const dataUrl = await drawPalettePNG(palette);
+    const a = document.createElement("a");
+    a.href = dataUrl;
+    a.download = "method-swatch.png";
+    a.click();
+  };
 
-  const removeImage = async (name) => {
-    const updated = files.filter((f) => f.name !== name);
-    setFiles(updated);
+  const removeImage = (name) => {
+    setFiles((prev) => prev.filter((f) => f.name !== name));
     setPreviews((prev) => {
       const target = prev.find((p) => p.name === name);
       if (target) URL.revokeObjectURL(target.url);
       return prev.filter((p) => p.name !== name);
     });
-    if (updated.length) {
-      const px = await extractPixelsFromFiles(updated);
-      setPixels(px);
-    } else {
-      setPixels([]);
-      setPalette([]);
-    }
   };
 
   return (
@@ -567,8 +508,8 @@ export default function MethodSwatchApp() {
       <header className="sticky top-0 z-10 backdrop-blur border-b border-black/10 bg-white/80">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl border border-black/10 grid place-items-center overflow-hidden">
-              <img src={logo} alt="Method Swatch logo" className="h-5 w-5" />
+            <div className="h-9 w-9 rounded-xl border border-black/10 grid place-items-center">
+              <Palette className="h-5 w-5" />
             </div>
             <div>
               <h1 className="text-xl font-semibold tracking-tight">Method Swatch</h1>
@@ -613,7 +554,7 @@ export default function MethodSwatchApp() {
               <label className="cursor-pointer">
                 <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => handleFiles(e.target.files)} />
                 <span className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-black/10 hover:bg-black/5 text-sm">
-                  <Images className="h-4 w-4" /> Choose images
+                  <ImageIcon className="h-4 w-4" /> Choose images
                 </span>
               </label>
             </div>
@@ -730,7 +671,7 @@ export default function MethodSwatchApp() {
                           <div className="flex items-center gap-1">
                             <button onClick={() => copyText(hex)} className="p-1 rounded-lg hover:bg-black/5" title="Copy HEX"><Copy className="h-3.5 w-3.5"/></button>
                             <button onClick={() => toggleLock(idx)} className={`p-1 rounded-lg hover:bg-black/5 ${c.locked ? 'text-amber-600' : ''}`} title={c.locked ? 'Unlock' : 'Lock'}>
-                              {c.locked ? <Lock className="h-3.5 w-3.5"/> : <Unlock className="h-3.5 w-3.5"/>}
+                              {c.locked ? <Lock className="h-3.5 w-3.5"/> : <LockOpen className="h-3.5 w-3.5"/>}
                             </button>
                           </div>
                         </div>
