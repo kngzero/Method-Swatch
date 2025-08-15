@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Upload, Images, Trash2, Download, Copy, RefreshCcw, Lock, Unlock, Settings, ImageIcon } from "lucide-react";
+import { Upload, Image as ImageIcon, Trash2, Download, Copy, RefreshCcw, Lock, Unlock, Settings } from "lucide-react";
 import { mergeCloseColors } from "./mergeCloseColors.js";
 import logo from "../logo.svg";
 
